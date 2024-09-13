@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테트리스 게임</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #game-board {
+            border: 2px solid #ffffff;
+        }
+        #victory {
+            position: absolute;
+            font-size: 48px;
+            color: gold;
+            display: none;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #score-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            color: #000000;
+        }
+        
+        #score-info h3 {
+            margin-top: 0;
+        }
+        
+        #score-info ul {
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-board" width="300" height="600"></canvas>
+        <div id="victory">Victory!</div>
+        <div id="score-info">
+            <h3>점수 계산</h3>
+            <ul>
+                <li>1줄 제거: 100점</li>
+                <li>2줄 동시 제거: 300점</li>
+                <li>3줄 동시 제거: 500점</li>
+                <li>4줄 동시 제거: 800점</li>
+            </ul>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const ROWS = 20;
+        const COLS = 10;
+        const BLOCK_SIZE = 30;
+        const COLORS = ['#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+
+        let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        let piece = getRandomPiece();
+
+        function getRandomPiece() {
+            const pieces = [
+                [[1,1,1,1]],                // I 모양
+                [[1,1],[1,1]],              // O 모양
+                [[1,1,1],[0,1,0]],          // T 모양
+                [[1,1,1],[1,0,0]],          // L 모양
+                [[1,1,1],[0,0,1]],          // J 모양
+                [[1,1,0],[0,1,1]],          // S 모양
+                [[0,1,1],[1,1,0]],          // Z 모양
+                [[1,1,1,1],[1,0,0,0]],      // 긴 L 모양
+                [[1,1,1,1],[0,0,0,1]],      // 긴 J 모양
+                [[1,1],[1,0],[1,0]],        // 긴 L 모양 (세로)
+                [[1,1],[0,1],[0,1]],        // 긴 J 모양 (세로)
+                [[1,1,1],[1,1,0]],          // 계단 모양
+                [[1,1,1],[0,1,1]],          // 역계단 모양
+                [[1,0],[1,1],[0,1]]         // 지그재그 모양
+            ];
+            return {
+                shape: pieces[Math.floor(Math.random() * pieces.length)],
+                color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                x: Math.floor(COLS / 2) - 1,
+                y: 0
+            };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            board.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        ctx.fillStyle = COLORS[value - 1];
+                        ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        ctx.strokeStyle = '#000000';
+                        ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        ctx.fillStyle = piece.color;
+                        ctx.fillRect((piece.x + x) * BLOCK_SIZE, (piece.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        ctx.strokeStyle = '#000000';
+                        ctx.strokeRect((piece.x + x) * BLOCK_SIZE, (piece.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+        }
+
+        function moveDown() {
+            piece.y++;
+            if (collision()) {
+                piece.y--;
+                merge();
+                removeRows();
+                piece = getRandomPiece();
+                if (collision()) {
+                    alert('게임 오버!');
+                    board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+                }
+            }
+        }
+
+        function moveLeft() {
+            piece.x--;
+            if (collision()) {
+                piece.x++;
+            }
+        }
+
+        function moveRight() {
+            piece.x++;
+            if (collision()) {
+                piece.x--;
+            }
+        }
+
+        function rotate() {
+            const rotated = piece.shape[0].map((_, i) => piece.shape.map(row => row[i]).reverse());
+            const prevShape = piece.shape;
+            piece.shape = rotated;
+            if (collision()) {
+                piece.shape = prevShape;
+            }
+        }
+
+        function collision() {
+            return piece.shape.some((row, y) => 
+                row.some((value, x) => 
+                    value && (board[piece.y + y] && board[piece.y + y][piece.x + x]) !== 0
+                )
+            );
+        }
+
+        function merge() {
+            piece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        board[piece.y + y][piece.x + x] = COLORS.indexOf(piece.color) + 1;
+                    }
+                });
+            });
+        }
+
+        function removeRows() {
+            let rowsToRemove = [];
+            board.forEach((row, y) => {
+                if (row.every(value => value !== 0)) {
+                    rowsToRemove.push(y);
+                }
+            });
+
+            if (rowsToRemove.length > 0) {
+                animateRowRemoval(rowsToRemove);
+            }
+        }
+
+        function animateRowRemoval(rows) {
+            let animationFrames = 10;
+            let currentFrame = 0;
+
+            function animate() {
+                if (currentFrame < animationFrames) {
+                    rows.forEach(y => {
+                        board[y].forEach((_, x) => {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${1 - currentFrame / animationFrames})`;
+                            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        });
+                    });
+                    currentFrame++;
+                    requestAnimationFrame(animate);
+                } else {
+                    board = board.filter((_, y) => !rows.includes(y));
+                    for (let i = 0; i < rows.length; i++) {
+                        board.unshift(Array(COLS).fill(0));
+                    }
+                    showVictory();
+                    draw();
+                }
+            }
+
+            animate();
+        }
+
+        function showVictory() {
+            const victory = document.getElementById('victory');
+            victory.style.display = 'block';
+            victory.style.animation = 'fadeOut 2s forwards';
+            setTimeout(() => {
+                victory.style.display = 'none';
+                victory.style.animation = '';
+            }, 2000);
+        }
+
+        document.addEventListener('keydown', event => {
+            switch (event.keyCode) {
+                case 37: moveLeft(); break;
+                case 39: moveRight(); break;
+                case 40: moveDown(); break;
+                case 38: rotate(); break;
+            }
+            draw();
+        });
+
+        setInterval(() => {
+            moveDown();
+            draw();
+        }, 500);
+
+        draw();
+    </script>
+</body>
+</html>
